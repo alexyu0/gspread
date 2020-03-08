@@ -9,6 +9,10 @@ Google API.
 
 from http import HTTPStatus
 from typing import Type
+import requests
+import random
+import logging
+from time import sleep
 
 from google.auth.transport.requests import AuthorizedSession
 
@@ -26,6 +30,9 @@ from .utils import (
     extract_id_from_url,
     finditem,
 )
+
+
+log = logging.getLogger(__name__)
 
 
 class Client:
@@ -76,20 +83,28 @@ class Client:
         files=None,
         headers=None,
     ):
-        response = getattr(self.session, method)(
-            endpoint,
-            json=json,
-            params=params,
-            data=data,
-            files=files,
-            headers=headers,
-            timeout=self.timeout,
-        )
-
-        if response.ok:
-            return response
-        else:
-            raise APIError(response)
+        max_backoff=32
+        i = 0
+        while True:
+            response = getattr(self.session, method)(
+                endpoint,
+                json=json,
+                params=params,
+                data=data,
+                files=files,
+                headers=headers
+            )
+            if response.ok:
+                return response
+            elif response.status_code == 429:
+                # rate limited by the the googs
+                rand_ms = float(random.uniform(0, 1000))
+                sleep_time = min(2**i + rand_ms/1000, max_backoff)
+                log.info('Rate limited (error code 429), sleeping for {}'.format(sleep_time))
+                sleep(sleep_time)
+                continue
+            else:
+                raise APIError(response)
 
     def list_spreadsheet_files(self, title=None, folder_id=None):
         """List all the spreadsheet files
