@@ -102,6 +102,7 @@ class Client:
                 sleep_time = min(2**i + rand_ms/1000, max_backoff)
                 log.info('Rate limited (error code 429), sleeping for {}'.format(sleep_time))
                 sleep(sleep_time)
+                i += 1
                 continue
             else:
                 raise APIError(response)
