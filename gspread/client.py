@@ -10,6 +10,9 @@ Google API.
 """
 
 import requests
+import random
+import logging
+from time import sleep
 
 from .utils import finditem
 from .utils import extract_id_from_url
@@ -22,6 +25,9 @@ from .urls import (
     DRIVE_FILES_API_V2_URL,
     DRIVE_FILES_UPLOAD_API_V2_URL
 )
+
+
+log = logging.getLogger(__name__)
 
 
 class Client(object):
@@ -64,19 +70,28 @@ class Client(object):
             files=None,
             headers=None):
 
-        response = getattr(self.session, method)(
-            endpoint,
-            json=json,
-            params=params,
-            data=data,
-            files=files,
-            headers=headers
-        )
-
-        if response.ok:
-            return response
-        else:
-            raise APIError(response)
+        max_backoff=32
+        i = 0
+        while True:
+            response = getattr(self.session, method)(
+                endpoint,
+                json=json,
+                params=params,
+                data=data,
+                files=files,
+                headers=headers
+            )
+            if response.ok:
+                return response
+            elif response.status_code == 429:
+                # rate limited by the the googs
+                rand_ms = float(random.uniform(0, 1000))
+                sleep_time = min(2**i + rand_ms/1000, max_backoff)
+                log.info('Rate limited (error code 429), sleeping for {}'.format(sleep_time))
+                sleep(sleep_time)
+                continue
+            else:
+                raise APIError(response)
 
     def list_spreadsheet_files(self):
         files = []
@@ -378,7 +393,7 @@ class Client(object):
         :type notify: str
         :param email_message: (optional) An email message to be sent if notify=True.
         :type email_message: str
-        
+
         :param with_link: (optional) Whether the link is required for this permission to be active.
         :type with_link: bool
 
