@@ -34,15 +34,17 @@ class GSpread:
         global AUTH_HEADER
         AUTH_HEADER =  {'Authorization': 'Bearer {}'.format(constants.ACCESS_TOKEN)}
 
-    def __auth_loop(self):
+    def __auth_loop(self, fn, args, kwargs, pass_fn):
         webbrowser.open('{}:{}/authorize'.format(constants.HOST, constants.PORT))
         stale_token = constants.ACCESS_TOKEN
-        while constants.ACCESS_TOKEN == stale_token:
-            print(stale_token, constants.ACCESS_TOKEN)
-            sleep(1)
+        while True:
+            print("in loop", stale_token, constants.ACCESS_TOKEN)
+            sleep(60)
             if os.path.exists(constants.ACCESS_TOKEN_PATH):
                 with open(constants.ACCESS_TOKEN_PATH, 'r') as f:
                     constants.ACCESS_TOKEN = json.load(f)
+            if pass_fn(fn(*args, **kwargs)):
+                break
 
     def create_sheet_at_index(self, title, index, rows, cols):
         body = {
@@ -58,6 +60,37 @@ class GSpread:
                             },
                             'index': index,
                         },
+                    },
+                },
+            ],
+        }
+        while True:
+            resp = requests.post(SHEETS_URL_TEMPLATE.format('batchUpdate'), 
+                headers=AUTH_HEADER,
+                json=body)
+            if not resp.ok:
+                log.error(resp.json())
+                if resp.status_code == 401:
+                    # auth error so refresh token
+                    self.__auth_loop(
+                        requests.post, 
+                        [SHEETS_URL_TEMPLATE.format('batchUpdate')],
+                        {
+                            'headers': AUTH_HEADER,
+                            'json': body,
+                        },
+                        lambda resp: resp.ok,
+                    )
+            else:
+                break
+
+    def duplicate_sheet(self, id, title):
+        body = {
+            'requests': [
+                {
+                    'duplicateSheetRequest': {
+                        'sourceSheetId': id,
+                        'newSheetName': '{}_copy_{}'.format(title, datetime.now()),
                     },
                 },
             ],
