@@ -3,48 +3,56 @@ from time import sleep
 import json
 import os
 import logging
+from datetime import datetime
 
 
 import requests
 
 
-import budgeting.utils.constants as constants
-
-
 log = logging.getLogger(__name__)
 
 
-AUTH_HEADER = None
-SHEETS_BASE_URL = 'https://sheets.googleapis.com/v4/spreadsheets/{}'.format(
-    constants.SPREADSHEET_ID)
-SHEETS_URL_TEMPLATE = SHEETS_BASE_URL + ':{}'
-
-
 class GSpread:
-    def __init__(self):
-        if constants.ACCESS_TOKEN is None:
-            # token authorization flow
-            if os.path.exists(constants.ACCESS_TOKEN_PATH):
-                with open(constants.ACCESS_TOKEN_PATH, 'r') as f:
-                    constants.ACCESS_TOKEN = json.load(f)
-                    print(constants.ACCESS_TOKEN)
-            else:
-                self.__auth_loop()
+    def __init__(self, access_token, access_token_path, spreadsheet_id, host, port):
+        self.access_token = access_token
+        self.access_token_path = access_token_path
+        self.spreadsheet_id = spreadsheet_id
+        self.host = host
+        self.port = port
 
-        global AUTH_HEADER
-        AUTH_HEADER =  {'Authorization': 'Bearer {}'.format(constants.ACCESS_TOKEN)}
+        if self.access_token is None:
+            # token authorization flow
+            if os.path.exists(self.access_token_path):
+                with open(self.access_token_path, 'r') as f:
+                    self.access_token = json.load(f)
+                    print(self.access_token)
+            else:
+                self.__auth_loop(None, None, None, None)
+
+        self.auth_header =  {'Authorization': 'Bearer {}'.format(self.access_token)}
+        self.base_url = 'https://sheets.googleapis.com/v4/spreadsheets/{}'.format(
+            self.spreadsheet_id)
+        self.url_template = self.base_url + ':{}'
 
     def __auth_loop(self, fn, args, kwargs, pass_fn):
-        webbrowser.open('{}:{}/authorize'.format(constants.HOST, constants.PORT))
-        stale_token = constants.ACCESS_TOKEN
+        webbrowser.open('{}:{}/authorize'.format(self.host, self.port))
+        stale_token = self.access_token
         while True:
-            print("in loop", stale_token, constants.ACCESS_TOKEN)
-            sleep(60)
-            if os.path.exists(constants.ACCESS_TOKEN_PATH):
-                with open(constants.ACCESS_TOKEN_PATH, 'r') as f:
-                    constants.ACCESS_TOKEN = json.load(f)
-            if pass_fn(fn(*args, **kwargs)):
-                break
+            print("in loop", stale_token, self.access_token)
+            if os.path.exists(self.access_token_path):
+                with open(self.access_token_path, 'r') as f:
+                    self.access_token = json.load(f)
+
+            if fn is None:
+                sleep(1)
+                if self.access_token != stale_token:
+                    break
+            else:
+                sleep(20)
+                result = fn(*args, **kwargs)
+                print(result)
+                if pass_fn(result):
+                    break
 
     def create_sheet_at_index(self, title, index, rows, cols):
         body = {
@@ -65,8 +73,8 @@ class GSpread:
             ],
         }
         while True:
-            resp = requests.post(SHEETS_URL_TEMPLATE.format('batchUpdate'), 
-                headers=AUTH_HEADER,
+            resp = requests.post(self.url_template.format('batchUpdate'), 
+                headers=self.auth_header,
                 json=body)
             if not resp.ok:
                 log.error(resp.json())
@@ -74,9 +82,9 @@ class GSpread:
                     # auth error so refresh token
                     self.__auth_loop(
                         requests.post, 
-                        [SHEETS_URL_TEMPLATE.format('batchUpdate')],
+                        [self.url_template.format('batchUpdate')],
                         {
-                            'headers': AUTH_HEADER,
+                            'headers': self.auth_header,
                             'json': body,
                         },
                         lambda resp: resp.ok,
@@ -84,25 +92,34 @@ class GSpread:
             else:
                 break
 
-    def duplicate_sheet(self, id, title):
+    def duplicate_sheet(self, id, title, index):
         body = {
             'requests': [
                 {
-                    'duplicateSheetRequest': {
+                    'duplicateSheet': {
                         'sourceSheetId': id,
                         'newSheetName': '{}_copy_{}'.format(title, datetime.now()),
+                        'insertSheetIndex': index + 1,
                     },
                 },
             ],
         }
         while True:
-            resp = requests.post(SHEETS_URL_TEMPLATE.format('batchUpdate'), 
-                headers=AUTH_HEADER,
+            resp = requests.post(self.url_template.format('batchUpdate'), 
+                headers=self.auth_header,
                 json=body)
             if not resp.ok:
                 log.error(resp.json())
                 if resp.status_code == 401:
                     # auth error so refresh token
-                    self.__auth_loop()
+                    self.__auth_loop(
+                        requests.post, 
+                        [self.url_template.format('batchUpdate')],
+                        {
+                            'headers': self.auth_header,
+                            'json': body,
+                        },
+                        lambda resp: resp.ok,
+                    )
             else:
                 break
