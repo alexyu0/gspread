@@ -122,6 +122,7 @@ def oauth2callback():
     #                            credentials in a persistent database instead.
     credentials = flow.credentials
     flask.session['credentials'] = _credentials_to_dict(credentials)
+    print('new token is {}'.format(credentials.to_json))
     constants.ACCESS_TOKEN = str(credentials.to_json)
     with open(constants.ACCESS_TOKEN_PATH, 'w') as f:
         json.dump(credentials.token, f)
