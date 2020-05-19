@@ -29,10 +29,13 @@ class GSpread:
             else:
                 self.__auth_loop(None, None, None, None)
 
-        self.auth_header =  {'Authorization': 'Bearer {}'.format(self.access_token)}
         self.base_url = 'https://sheets.googleapis.com/v4/spreadsheets/{}'.format(
             self.spreadsheet_id)
         self.url_template = self.base_url + ':{}'
+
+    @property
+    def auth_header(self):
+        return {'Authorization': 'Bearer {}'.format(self.access_token)}
 
     def __auth_loop(self, fn, args, kwargs, pass_fn):
         webbrowser.open('{}:{}/authorize'.format(self.host, self.port))
@@ -46,12 +49,17 @@ class GSpread:
             if fn is None:
                 sleep(1)
                 if self.access_token != stale_token:
+                    print('tokens are different, breaking loop')
                     break
             else:
-                sleep(20)
+                sleep(1)
+                if 'headers' in kwargs:
+                    kwargs['headers'] = self.auth_header
+                print('auth pass fn kwargs is {}'.format(kwargs))
                 result = fn(*args, **kwargs)
-                print(result)
-                if pass_fn(result):
+                print(result, result.ok)
+                if pass_fn and pass_fn(result):
+                    print('pass_fn {} passed, breaking loop'.format(pass_fn))
                     break
 
     def create_sheet_at_index(self, title, index, rows, cols):
@@ -79,7 +87,7 @@ class GSpread:
             if not resp.ok:
                 log.error(resp.json())
                 if resp.status_code == 401:
-                    # auth error so refresh token
+                    # auth error so refresh token then break since auth loop will do the work
                     self.__auth_loop(
                         requests.post, 
                         [self.url_template.format('batchUpdate')],
@@ -89,8 +97,8 @@ class GSpread:
                         },
                         lambda resp: resp.ok,
                     )
-            else:
-                break
+
+            break
 
     def duplicate_sheet(self, id, title, index):
         body = {
@@ -111,7 +119,7 @@ class GSpread:
             if not resp.ok:
                 log.error(resp.json())
                 if resp.status_code == 401:
-                    # auth error so refresh token
+                    # auth error so refresh token then break since auth loop will do the work
                     self.__auth_loop(
                         requests.post, 
                         [self.url_template.format('batchUpdate')],
@@ -121,5 +129,5 @@ class GSpread:
                         },
                         lambda resp: resp.ok,
                     )
-            else:
-                break
+
+            break
