@@ -97,7 +97,7 @@ class Client:
             if response.ok:
                 return response
             elif response.status_code == 429:
-                # rate limited by the the googs
+                # rate limited by the googs
                 rand_ms = float(random.uniform(0, 1000))
                 sleep_time = min(2**i + rand_ms/1000, max_backoff)
                 log.info('Rate limited (error code 429), sleeping for {}'.format(sleep_time))
