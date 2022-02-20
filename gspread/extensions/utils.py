@@ -179,6 +179,7 @@ def auth():
 
 
 def tuples_to_cells(tuples, row_offset=0, col_offset=0):
+    # (tuple, int, int) -> List[Cell]
     cells = []
     for row in range(0, len(tuples)):
         for col in range(0, len(tuples[row])):

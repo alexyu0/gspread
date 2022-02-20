@@ -1,3 +1,4 @@
+import traceback
 import webbrowser
 from time import sleep
 import json
@@ -26,7 +27,6 @@ class GSpread:
             if os.path.exists(self.access_token_path):
                 with open(self.access_token_path, 'r') as f:
                     self.access_token = json.load(f)
-                    print(self.access_token)
             else:
                 self.__auth_loop(None, None, None, None)
 
@@ -62,18 +62,20 @@ class GSpread:
                 if pass_fn and pass_fn(result):
                     print('pass_fn {} passed, breaking loop'.format(pass_fn))
                     break
-    
+
     def __request_loop(self, body):
         max_backoff=32
         i = 0
         while True:
-            resp = requests.post(self.url_template.format('batchUpdate'), 
+            resp = requests.post(self.url_template.format('batchUpdate'),
                 headers=self.auth_header,
                 json=body)
             if resp.status_code == 429:
                 # rate limited by the googs
                 rand_ms = float(random.uniform(0, 1000))
                 sleep_time = min(2**i + rand_ms/1000, max_backoff)
+                for line in traceback.format_stack():
+                    print(line.strip())
                 log.info('Rate limited (error code 429), sleeping for {}'.format(sleep_time))
                 sleep(sleep_time)
                 i += 1
@@ -82,7 +84,7 @@ class GSpread:
                 if resp.status_code == 401:
                     # auth error so refresh token then break since auth loop will do the work
                     self.__auth_loop(
-                        requests.post, 
+                        requests.post,
                         [self.url_template.format('batchUpdate')],
                         {
                             'headers': self.auth_header,
@@ -146,8 +148,8 @@ class GSpread:
                 log.info('clearing done')
                 break
 
-    def color_conditional_format(self, 
-                                 sheet_id, 
+    def color_conditional_format(self,
+                                 sheet_id,
                                  start_col,
                                  start_row,
                                  end_col,
@@ -198,6 +200,25 @@ class GSpread:
                             }
                         },
                         'index': 0
+                    }
+                }
+            ]
+        }
+        self.__request_loop(body)
+
+    def insert_cells(self, sheet_id, start_row, start_col, end_col, num_rows):
+        body = {
+            'requests': [
+                {
+                    'insertRange': {
+                        'range': {
+                            'sheetId': sheet_id,
+                            'startRowIndex': start_row,
+                            'endRowIndex': start_row + num_rows,
+                            'startColumnIndex': start_col,
+                            'endColumnIndex': end_col
+                        },
+                        'shiftDimension': 'ROWS'
                     }
                 }
             ]

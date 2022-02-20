@@ -1,3 +1,6 @@
+import traceback
+# -*- coding: utf-8 -*-
+
 """
 gspread.client
 ~~~~~~~~~~~~~~
@@ -83,7 +86,7 @@ class Client:
         files=None,
         headers=None,
     ):
-        max_backoff=32
+        max_backoff = 32
         i = 0
         while True:
             response = getattr(self.session, method)(
@@ -100,6 +103,8 @@ class Client:
                 # rate limited by the googs
                 rand_ms = float(random.uniform(0, 1000))
                 sleep_time = min(2**i + rand_ms/1000, max_backoff)
+                for line in traceback.format_stack():
+                    print(line.strip())
                 log.info('Rate limited (error code 429), sleeping for {}'.format(sleep_time))
                 sleep(sleep_time)
                 i += 1
