@@ -728,3 +728,134 @@ class Spreadsheet:
             raise WorksheetNotFound("worksheet id {} not found".format(sheetid))
 
         return sheet.get("protectedRanges", [])
+
+    ################
+    # my additions #
+    ################
+    def create_sheet_at_index(self, title, index, rows, cols):
+        body = {
+            'requests': [
+                {
+                    'addSheet': {
+                        'properties': {
+                            'title': title,
+                            'sheetType': 'GRID',
+                            'gridProperties': {
+                                'rowCount': rows,
+                                'columnCount': cols,
+                            },
+                            'index': index,
+                        },
+                    },
+                },
+            ],
+        }
+        self.batch_update(body)
+
+    def duplicate_sheet(self, sheet_id, title, index):
+        body = {
+            'requests': [
+                {
+                    'duplicateSheet': {
+                        'sourceSheetId': sheet_id,
+                        'newSheetName': '{}_copy_{}'.format(title, datetime.now()),
+                        'insertSheetIndex': index + 1,
+                    },
+                },
+            ],
+        }
+        self.batch_update(body)
+
+    def clear_conditional_formatting(self, sheet_id):
+        while True:
+            try:
+                self.batch_update({
+                    'requests': [
+                        {
+                            'deleteConditionalFormatRule': {
+                                'index': 0,
+                                'sheetId': sheet_id,
+                            },
+                        },
+                    ],
+                })
+            except Exception:
+                log.info('clearing done')
+                break
+
+    def color_conditional_format(self,
+                                 sheet_id,
+                                 start_col,
+                                 start_row,
+                                 end_col,
+                                 end_row,
+                                 threshold=None,
+                                 rgb_tup=(255, 255, 255),
+                                 lte=False,
+                                 gte=False):
+        # bool condition type
+        cond_type = None
+        if lte:
+            cond_type = 'NUMBER_LESS_THAN_EQ'
+        elif gte:
+            cond_type = 'NUMBER_GREATER_THAN_EQ'
+        else:
+            raise 'Invalid condition, choose either lte or gte'
+
+        body = {
+            'requests': [
+                {
+                    'addConditionalFormatRule': {
+                        'rule': {
+                            'ranges': [
+                                {
+                                    'sheetId': sheet_id,
+                                    'startColumnIndex': start_col,
+                                    'startRowIndex': start_row,
+                                    'endColumnIndex': end_col,
+                                    'endRowIndex': end_row,
+                                },
+                            ],
+                            'booleanRule': {
+                                'condition': {
+                                    'type': cond_type,
+                                    'values': [
+                                        {
+                                            'userEnteredValue': threshold,
+                                        }
+                                    ]
+                                },
+                                'format': {
+                                    'backgroundColor': {
+                                        'red': rgb_tup[0]/255.0,
+                                        'green': rgb_tup[1]/255.0,
+                                        'blue': rgb_tup[2]/255.0,
+                                    }
+                                }
+                            }
+                        },
+                        'index': 0
+                    }
+                }
+            ]
+        }
+        self.batch_update(body)
+
+    def insert_cells(self, sheet_id, start_row, start_col, end_col, num_rows):
+        body = {
+            'requests': [
+                {
+                    'insertRange': {
+                        'range': {
+                            'sheetId': sheet_id,
+                            'startRowIndex': start_row,
+                            'endRowIndex': start_row + num_rows,
+                            'startColumnIndex': start_col,
+                            'endColumnIndex': end_col
+                        },
+                        'shiftDimension': 'ROWS'
+                    }
+                }
+            ]
+        }
+        self.batch_update(body)
