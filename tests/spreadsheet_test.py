@@ -1,4 +1,5 @@
 import re
+import time
 
 import pytest
 
@@ -8,7 +9,6 @@ from .conftest import GspreadTest
 
 
 class SpreadsheetTest(GspreadTest):
-
     """Test for gspread.Spreadsheet."""
 
     @pytest.fixture(scope="function", autouse=True)
@@ -28,23 +28,48 @@ class SpreadsheetTest(GspreadTest):
     @pytest.mark.vcr()
     def test_sheet1(self):
         sheet1 = self.spreadsheet.sheet1
-        self.assertTrue(isinstance(sheet1, gspread.Worksheet))
+        self.assertIsInstance(sheet1, gspread.Worksheet)
 
     @pytest.mark.vcr()
     def test_get_worksheet(self):
         sheet1 = self.spreadsheet.get_worksheet(0)
-        self.assertTrue(isinstance(sheet1, gspread.Worksheet))
+        self.assertIsInstance(sheet1, gspread.Worksheet)
 
     @pytest.mark.vcr()
     def test_get_worksheet_by_id(self):
-        sheet1 = self.spreadsheet.get_worksheet_by_id(0)
-        self.assertTrue(isinstance(sheet1, gspread.Worksheet))
+        sheet1_by_int = self.spreadsheet.get_worksheet_by_id(0)
+        sheet1_by_str = self.spreadsheet.get_worksheet_by_id("0")
+        self.assertIsInstance(sheet1_by_int, gspread.Worksheet)
+        self.assertIsInstance(sheet1_by_str, gspread.Worksheet)
 
     @pytest.mark.vcr()
     def test_worksheet(self):
         sheet_title = "Sheet1"
         sheet = self.spreadsheet.worksheet(sheet_title)
-        self.assertTrue(isinstance(sheet, gspread.Worksheet))
+        self.assertIsInstance(sheet, gspread.Worksheet)
+
+    @pytest.mark.vcr()
+    def test_worksheets(self):
+        n_worksheets_before = len(self.spreadsheet.worksheets())
+
+        self.spreadsheet.add_worksheet("finances", 100, 100)
+
+        n_worksheets_after = len(self.spreadsheet.worksheets())
+
+        self.assertEqual(n_worksheets_before, 1)
+        self.assertEqual(n_worksheets_after, 2)
+
+    @pytest.mark.vcr()
+    def test_worksheets_exclude_hidden(self):
+        self.spreadsheet.add_worksheet("finances", 100, 100)
+        gacha_worksheet = self.spreadsheet.add_worksheet("gacha", 100, 100)
+        gacha_worksheet.hide()
+
+        n_worksheets_and_hidden = len(self.spreadsheet.worksheets(exclude_hidden=False))
+        n_worksheets_no_hidden = len(self.spreadsheet.worksheets(exclude_hidden=True))
+
+        self.assertEqual(n_worksheets_and_hidden, 3)
+        self.assertEqual(n_worksheets_no_hidden, 2)
 
     @pytest.mark.vcr()
     def test_worksheet_iteration(self):
@@ -79,6 +104,7 @@ class SpreadsheetTest(GspreadTest):
         sg = self._sequence_generator()
         worksheet1_name = next(sg)
         worksheet2_name = next(sg)
+        worksheet3_name = next(sg)
 
         worksheet_list = self.spreadsheet.worksheets()
         self.assertEqual(len(worksheet_list), 1)
@@ -87,14 +113,16 @@ class SpreadsheetTest(GspreadTest):
         # Add
         worksheet1 = self.spreadsheet.add_worksheet(worksheet1_name, 1, 1)
         worksheet2 = self.spreadsheet.add_worksheet(worksheet2_name, 1, 1)
+        worksheet3 = self.spreadsheet.add_worksheet(worksheet3_name, 1, 1)
 
         # Re-read, check again
         worksheet_list = self.spreadsheet.worksheets()
-        self.assertEqual(len(worksheet_list), 3)
+        self.assertEqual(len(worksheet_list), 4)
 
         # Delete
         self.spreadsheet.del_worksheet(worksheet1)
-        self.spreadsheet.del_worksheet(worksheet2)
+        self.spreadsheet.del_worksheet_by_id(int(worksheet2.id))
+        self.spreadsheet.del_worksheet_by_id(str(worksheet3.id))
 
         worksheet_list = self.spreadsheet.worksheets()
         self.assertEqual(len(worksheet_list), 1)
@@ -136,14 +164,18 @@ class SpreadsheetTest(GspreadTest):
         self.spreadsheet.update_timezone(new_timezone)
         self.spreadsheet.update_locale(new_locale)
 
-        # must fect metadata
+        # must fetch metadata
         properties = self.spreadsheet.fetch_sheet_metadata()["properties"]
+        timezone_prop_after = self.spreadsheet.timezone
+        locale_prop_after = self.spreadsheet.locale
 
         self.assertNotEqual(prev_timezone, properties["timeZone"])
         self.assertNotEqual(prev_locale, properties["locale"])
 
         self.assertEqual(new_timezone, properties["timeZone"])
+        self.assertEqual(new_timezone, timezone_prop_after)
         self.assertEqual(new_locale, properties["locale"])
+        self.assertEqual(new_locale, locale_prop_after)
 
     @pytest.mark.vcr()
     def test_update_title(self):
@@ -161,3 +193,45 @@ class SpreadsheetTest(GspreadTest):
 
         self.assertNotEqual(prev_title, properties["title"])
         self.assertEqual(new_title, properties["title"])
+
+    @pytest.mark.vcr()
+    def test_get_lastUpdateTime(self):
+        """Test get_lastUpdateTime method works"""
+        lastUpdateTime_before = self.spreadsheet.get_lastUpdateTime()
+
+        time.sleep(0.01)
+        self.spreadsheet.update_title("🎊 Updated Title #123 🎉")
+
+        lastUpdateTime_after = self.spreadsheet.get_lastUpdateTime()
+
+        self.assertNotEqual(lastUpdateTime_before, lastUpdateTime_after)
+
+    @pytest.mark.vcr()
+    def test_creationTime_prop(self):
+        """test lastUpdateTime property behaviour"""
+        creationTime = self.spreadsheet.creationTime
+        self.assertIsNotNone(creationTime)
+
+    @pytest.mark.vcr()
+    def test_export_spreadsheet(self):
+        """Test the export feature of a spreadsheet.
+
+        JSON cannot serialize binary data (like PDF or OpenSpreadsheetFormat)
+        Export to CSV text format only
+        """
+
+        values = [
+            ["a1", "B2"],
+        ]
+        self.spreadsheet.sheet1.update(
+            values=values,
+            range_name="A1:B2",
+        )
+
+        res = self.spreadsheet.export(gspread.utils.ExportFormat.CSV)
+
+        res_values = bytes(res).decode("utf-8").strip("'").split(",")
+
+        self.assertEqual(
+            values[0], res_values, "exported values are not the value initially set"
+        )

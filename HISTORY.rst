@@ -1,6 +1,241 @@
 Release History
 ===============
 
+6.1.2 (2024-05-17)
+------------------
+
+* add note about runnings tests to contrib guide by @alifeee in https://github.com/burnash/gspread/pull/1465
+* Some updates on `get_notes` by @nbwzx in https://github.com/burnash/gspread/pull/1461
+
+6.1.1 (2024-05-16)
+------------------
+
+* Add some missing typing in code by @lavigne958 in https://github.com/burnash/gspread/pull/1448
+* More fixes for `Worksheet.update` argument ordering & single cell updating (i.e. now `Worksheet.update_acell`) by @alexmalins in https://github.com/burnash/gspread/pull/1449
+* Added 'add_data_validation` to `Workhsheet` [Issue #1420] by @muddi900 in https://github.com/burnash/gspread/pull/1444
+* Bump typing-extensions from 4.10.0 to 4.11.0 by @dependabot in https://github.com/burnash/gspread/pull/1450
+* Bump black from 23.3.0 to 24.4.0 by @dependabot in https://github.com/burnash/gspread/pull/1452
+* Fix incorrect version number in HISTORY.rst from 6.0.1 to 6.1.0 by @yhay81 in https://github.com/burnash/gspread/pull/1455
+* add `get_notes` by @nbwzx in https://github.com/burnash/gspread/pull/1451
+* Bump mypy from 1.9.0 to 1.10.0 by @dependabot in https://github.com/burnash/gspread/pull/1459
+* Bump black from 24.4.0 to 24.4.2 by @dependabot in https://github.com/burnash/gspread/pull/1460
+* bugfix: handle domain name in spreadsheet copy permissions by @lavigne958 in https://github.com/burnash/gspread/pull/1458
+* Fix/api key auth version by @alifeee in https://github.com/burnash/gspread/pull/1463
+* Ignore pip vulnerabilities in CI. by @lavigne958 in https://github.com/burnash/gspread/pull/1464
+* Remove StrEnum dependency and added custom class[issue #1462] by @muddi900 in https://github.com/burnash/gspread/pull/1469
+
+6.1.0 (2024-03-28)
+------------------
+
+* Add py.typed marker by @lavigne958 in https://github.com/burnash/gspread/pull/1422
+* Improve back-off client by @lavigne958 in https://github.com/burnash/gspread/pull/1415
+* Add new auth method API key by @lavigne958 in https://github.com/burnash/gspread/pull/1428
+* Bugfix/add set timeout by @lavigne958 in https://github.com/burnash/gspread/pull/1417
+* Fix wrapper `cast_to_a1_notation` by @lavigne958 in https://github.com/burnash/gspread/pull/1427
+* Bump bandit from 1.7.5 to 1.7.8 by @dependabot in https://github.com/burnash/gspread/pull/1433
+* Bump mypy from 1.6.1 to 1.9.0 by @dependabot in https://github.com/burnash/gspread/pull/1432
+* Bump typing-extensions from 4.8.0 to 4.10.0 by @dependabot in https://github.com/burnash/gspread/pull/1424
+* Bump flake8 from 5.0.4 to 7.0.0 by @dependabot in https://github.com/burnash/gspread/pull/1375
+* fix error message readability by @imrehg in https://github.com/burnash/gspread/pull/1435
+* Add missing method `import_csv()` by @lavigne958 in https://github.com/burnash/gspread/pull/1426
+* update readme examples by @alifeee in https://github.com/burnash/gspread/pull/1431
+* Add user friendly message when we can't override a test cassette by @lavigne958 in https://github.com/burnash/gspread/pull/1438
+* Allow "warning" type protected ranges by @alifeee in https://github.com/burnash/gspread/pull/1439
+* Improve README and documentation with value render options by @lavigne958 in https://github.com/burnash/gspread/pull/1446
+
+6.0.2 (2024-02-14)
+------------------
+
+* Fixup gspread client init arguments by @lavigne958 in https://github.com/burnash/gspread/pull/1412
+
+6.0.1 (2024-02-06)
+------------------
+
+* Allow client to use external Session object by @lavigne958 in https://github.com/burnash/gspread/pull/1384
+* Remove-py-3.7-support by @alifeee in https://github.com/burnash/gspread/pull/1396
+* bugfix/client export by @lavigne958 in https://github.com/burnash/gspread/pull/1392
+* Fix oauth flow typo by @alifeee in https://github.com/burnash/gspread/pull/1397
+* check oauth creds type using `isinstance` by @alifeee in https://github.com/burnash/gspread/pull/1398
+* Fix type hints at find method in worksheet.py by @deftfitf in https://github.com/burnash/gspread/pull/1407
+* Fixup get empty cell value is `None` by @lavigne958 in https://github.com/burnash/gspread/pull/1404
+* Fix missing attribute `spreadsheet` in `Worksheet`. by @lavigne958 in https://github.com/burnash/gspread/pull/1402
+* update migration guide by @alifeee in https://github.com/burnash/gspread/pull/1409
+
+6.0.0 (2024-01-28)
+------------------
+
+* Remove deprecated method delete_row by @cgkoutzigiannis in https://github.com/burnash/gspread/pull/1062
+* Initial typing in client.py by @OskarBrzeski in https://github.com/burnash/gspread/pull/1159
+* Split client http client by @lavigne958 in https://github.com/burnash/gspread/pull/1190
+* Spelling fix & update docs with date_time_render_option behaviour by @alifeee in https://github.com/burnash/gspread/pull/1187
+* #966  Add sketch typing for utils.py by @butvinm in https://github.com/burnash/gspread/pull/1196
+* Remove accepted_kwargs decorator by @lavigne958 in https://github.com/burnash/gspread/pull/1229
+* Remove/python-3.7 by @alifeee in https://github.com/burnash/gspread/pull/1234
+* Bump isort from 5.11.4 to 5.12.0 by @dependabot in https://github.com/burnash/gspread/pull/1165
+* bump flake8 to 6.0.0 by @alifeee in https://github.com/burnash/gspread/pull/1236
+* merge master into 6.0.0 by @lavigne958 in https://github.com/burnash/gspread/pull/1241
+* Remplace named tuples with enums by @lavigne958 in https://github.com/burnash/gspread/pull/1250
+* Feature/add type hints worksheets by @lavigne958 in https://github.com/burnash/gspread/pull/1254
+* Implement hex color conversion by @idonec in https://github.com/burnash/gspread/pull/1270
+* remove lastUpdateTime by @alifeee in https://github.com/burnash/gspread/pull/1295
+* Merge `master` into `feature/release_6_0_0` by @alifeee in https://github.com/burnash/gspread/pull/1320
+* Add type checking to lint by @alifeee in https://github.com/burnash/gspread/pull/1337
+* Warning/update swapped args by @alifeee in https://github.com/burnash/gspread/pull/1336
+* Improve `Worksheet.sort()` signature by @lavigne958 in https://github.com/burnash/gspread/pull/1342
+* Make `get_values` and alias of `get` by @alifeee in https://github.com/burnash/gspread/pull/1296
+* fix type issue (remove `.first()` function) by @alifeee in https://github.com/burnash/gspread/pull/1344
+* Remove/get records   use index by @alifeee in https://github.com/burnash/gspread/pull/1345
+* increase warning stacklevel from 1 to 2 by @alifeee in https://github.com/burnash/gspread/pull/1361
+* Feature/merge master by @lavigne958 in https://github.com/burnash/gspread/pull/1371
+* feature/merge master by @lavigne958 in https://github.com/burnash/gspread/pull/1372
+* Simplify get records by @alifeee in https://github.com/burnash/gspread/pull/1374
+* Add util function `to_records` to build records by @lavigne958 in https://github.com/burnash/gspread/pull/1377
+* feature/add utils get records by @lavigne958 in https://github.com/burnash/gspread/pull/1378
+* Add migration guide for get_all_records by @lavigne958 in https://github.com/burnash/gspread/pull/1379
+* feature/merge master into release 6 0 0 by @lavigne958 in https://github.com/burnash/gspread/pull/1381
+* Feature/release 6 0 0 by @lavigne958 in https://github.com/burnash/gspread/pull/1382
+
+5.12.4 (2023-12-31)
+-------------------
+
+* Bump actions/setup-python from 4 to 5 by @dependabot in https://github.com/burnash/gspread/pull/1370
+* Fixed default value of merge_type parameter in merge_cells function docstring. by @neolooong in https://github.com/burnash/gspread/pull/1373
+
+5.12.3 (2023-12-15)
+-------------------
+
+* 1363 get all records retrieves a large number of empty rows after the end of the data by @alifeee in https://github.com/burnash/gspread/pull/1364
+
+5.12.2 (2023-12-04)
+-------------------
+
+* Many fixes for `get_records` by @alifeee in https://github.com/burnash/gspread/pull/1357
+* change `worksheet.update` migration guide by @alifeee in https://github.com/burnash/gspread/pull/1362
+
+5.12.1 (2023-11-29)
+-------------------
+
+* feature/readme migration v6 by @lavigne958 in https://github.com/burnash/gspread/pull/1297
+* add deprecation warnings for lastUpdateTime... by @alifeee in https://github.com/burnash/gspread/pull/1333
+* remove `use_index` and references to it in `get_records` by @alifeee in https://github.com/burnash/gspread/pull/1343
+* make deprecation warning dependent on if kwarg is used for client_factory by @alifeee in https://github.com/burnash/gspread/pull/1349
+* fix 1352 expected headers broken by @alifeee in https://github.com/burnash/gspread/pull/1353
+* fix `combine_merged_cells` when using from a range that doesn't start at `A1` by @alifeee in https://github.com/burnash/gspread/pull/1335
+
+5.12.0 (2023-10-22)
+-------------------
+
+* feature -- adding `worksheet.get_records` to get specific row ranges by @AndrewBasem1 in https://github.com/burnash/gspread/pull/1301
+* Fix list_spreadsheet_files return value by @mephinet in https://github.com/burnash/gspread/pull/1308
+* Fix warning message for `worksheet.update` method by @ksj20 in https://github.com/burnash/gspread/pull/1312
+* change lambda function to dict (fix pyupgrade issue) by @alifeee in https://github.com/burnash/gspread/pull/1319
+* allows users to silence deprecation warnings by @lavigne958 in https://github.com/burnash/gspread/pull/1324
+* Add `maintain_size` to keep asked for size in `get`, `get_values` by @alifeee in https://github.com/burnash/gspread/pull/1305
+
+5.11.3 (2023-09-29)
+-------------------
+
+* Fix list_spreadsheet_files return value by @mephinet in https://github.com/burnash/gspread/pull/1308
+
+5.11.2 (2023-09-18)
+-------------------
+
+* Fix merge_combined_cells in get_values (AND 5.11.2 RELEASE) by @alifeee in https://github.com/burnash/gspread/pull/1299
+
+5.11.1 (2023-09-06)
+-------------------
+
+* Bump actions/checkout from 3 to 4 by @dependabot in https://github.com/burnash/gspread/pull/1288
+* remove Drive API access on Spreadsheet init (FIX - VERSION 5.11.1) by @alifeee in https://github.com/burnash/gspread/pull/1291
+
+5.11.0 (2023-09-04)
+-------------------
+
+* add docs/build to .gitignore by @alifeee in https://github.com/burnash/gspread/pull/1246
+* add release process to CONTRIBUTING.md by @alifeee in https://github.com/burnash/gspread/pull/1247
+* Update/clean readme badges by @lavigne958 in https://github.com/burnash/gspread/pull/1251
+* add test_fill_gaps and docstring for fill_gaps by @alifeee in https://github.com/burnash/gspread/pull/1256
+* Remove API calls from `creationTime`/`lastUpdateTime` by @alifeee in https://github.com/burnash/gspread/pull/1255
+* Fix Worksheet ID Type Inconsistencies by @FlantasticDan in https://github.com/burnash/gspread/pull/1269
+* Add `column_count` prop as well as `col_count` by @alifeee in https://github.com/burnash/gspread/pull/1274
+* Add required kwargs with no default value by @lavigne958 in https://github.com/burnash/gspread/pull/1271
+* Add deprecation warnings for colors by @alifeee in https://github.com/burnash/gspread/pull/1278
+* Add better Exceptions on opening spreadsheets by @alifeee in https://github.com/burnash/gspread/pull/1277
+
+5.10.0 (2023-06-29)
+-------------------
+
+* Fix rows_auto_resize in worksheet.py by removing redundant self by @MagicMc23 in https://github.com/burnash/gspread/pull/1194
+* Add deprecation warning for future release 6.0.x by @lavigne958 in https://github.com/burnash/gspread/pull/1195
+* FEATURE: show/hide gridlines (#1197) by @alifeee in https://github.com/burnash/gspread/pull/1202
+* CLEANUP: cleanup tox.ini, and ignore ./env by @alifeee in https://github.com/burnash/gspread/pull/1200
+* Refactor/update-contributing-guide by @alifeee in https://github.com/burnash/gspread/pull/1206
+* Spelling fix (with legacy option) by @alifeee in https://github.com/burnash/gspread/pull/1210
+* 457-fetch-without-hidden-worksheets by @alifeee in https://github.com/burnash/gspread/pull/1207
+* Add_deprecated_warning_sort_method by @lavigne958 in https://github.com/burnash/gspread/pull/1198
+* Update (and test for) internal properties on change by @alifeee in https://github.com/burnash/gspread/pull/1211
+* Feature: Add "Remove tab colour" method by @alifeee in https://github.com/burnash/gspread/pull/1199
+* Refresh-test-cassettes by @alifeee in https://github.com/burnash/gspread/pull/1217
+* update self._properties after batch_update by @alifeee in https://github.com/burnash/gspread/pull/1221
+* 700-fill-merged-cells by @alifeee in https://github.com/burnash/gspread/pull/1215
+* Fix/update-internal-properties by @alifeee in https://github.com/burnash/gspread/pull/1225
+* Add breaking change warning in Worksheet.update() by @lavigne958 in https://github.com/burnash/gspread/pull/1226
+* Bump codespell from 2.2.4 to 2.2.5 by @dependabot in https://github.com/burnash/gspread/pull/1232
+* Add/refresh last update time by @alifeee in https://github.com/burnash/gspread/pull/1233
+* Update-build-tools by @alifeee in https://github.com/burnash/gspread/pull/1231
+* add read the doc configuration file by @lavigne958 in https://github.com/burnash/gspread/pull/1235
+* update licence year by @alifeee in https://github.com/burnash/gspread/pull/1237
+* remove deprecated methods from tests by @alifeee in https://github.com/burnash/gspread/pull/1238
+
+5.9.0 (2023-05-11)
+------------------
+
+* Bugfix/fix get last update time by @lavigne958 in https://github.com/burnash/gspread/pull/1186
+* Add batch notes insert/update/clear by @lavigne958 in https://github.com/burnash/gspread/pull/1189
+
+5.8.0 (2023-04-05)
+------------------
+* Bump black from 22.10.0 to 22.12.0 by @dependabot in https://github.com/burnash/gspread/pull/1154
+* Bump isort from 5.10.1 to 5.11.3 by @dependabot in https://github.com/burnash/gspread/pull/1155
+* Bump isort from 5.11.3 to 5.11.4 by @dependabot in https://github.com/burnash/gspread/pull/1157
+* #1104: added a delete by worksheet id method by @muddi900 in https://github.com/burnash/gspread/pull/1148
+* improve CI workflow - upgrade setuptools to fix CVE by @lavigne958 in https://github.com/burnash/gspread/pull/1179
+* Bump codespell from 2.2.2 to 2.2.4 by @dependabot in https://github.com/burnash/gspread/pull/1178
+* Bump bandit from 1.7.4 to 1.7.5 by @dependabot in https://github.com/burnash/gspread/pull/1177
+* Bump black from 22.12.0 to 23.1.0 by @dependabot in https://github.com/burnash/gspread/pull/1168
+* Update user-guide.rst to include a warning by @alsaenko in https://github.com/burnash/gspread/pull/1181
+* Fixed typo in docs/user-guide.rst by @raboba2re in https://github.com/burnash/gspread/pull/1182
+* Bump black from 23.1.0 to 23.3.0 by @dependabot in https://github.com/burnash/gspread/pull/1183
+* Handle cases when rgbColor is not set by @lavigne958 in https://github.com/burnash/gspread/pull/1184
+
+5.7.2 (2022-12-03)
+------------------
+* Fix: `hidden` property might not be set from the API by @lavigne958 in https://github.com/burnash/gspread/pull/1151
+
+5.7.1 (2022-11-17)
+------------------
+* Fix dependencies required version by @lavigne958 in https://github.com/burnash/gspread/pull/1147
+
+5.7.0 (2022-11-13)
+------------------
+* chore: Update outdated LICENSE year by @bluzir in https://github.com/burnash/gspread/pull/1124
+* add dependabot to maintain dependencies by @lavigne958 in https://github.com/burnash/gspread/pull/1126
+* improve trigger on CI by @lavigne958 in https://github.com/burnash/gspread/pull/1134
+* Bump bandit from 1.7.0 to 1.7.4 by @dependabot in https://github.com/burnash/gspread/pull/1133
+* cancel previous run on same ref by @lavigne958 in https://github.com/burnash/gspread/pull/1135
+* Bump actions/setup-python from 2 to 4 by @dependabot in https://github.com/burnash/gspread/pull/1127
+* Bump actions/checkout from 2 to 3 by @dependabot in https://github.com/burnash/gspread/pull/1128
+* Bump black from 22.3.0 to 22.10.0 by @dependabot in https://github.com/burnash/gspread/pull/1132
+* Bump isort from 5.9.3 to 5.10.1 by @dependabot in https://github.com/burnash/gspread/pull/1131
+* Bump codespell from 2.1.0 to 2.2.2 by @dependabot in https://github.com/burnash/gspread/pull/1130
+* add named tuple for `DateTimeRenderOption` by @lavigne958 in https://github.com/burnash/gspread/pull/1136
+* Feature/copy cut paste by @lavigne958 in https://github.com/burnash/gspread/pull/1138
+* isSheetHidden method added to worksheet.py by @SazidAF in https://github.com/burnash/gspread/pull/1140
+
+5.6.2 (2022-10-23)
+------------------
+* update parent folder for `client.copy` method by @lavigne958 in https://github.com/burnash/gspread/pull/1123
+
 5.6.0 (2022-09-10)
 ------------------
 * Fix `clear_note` method when using numeric boundaries by @lavigne958 in https://github.com/burnash/gspread/pull/1106

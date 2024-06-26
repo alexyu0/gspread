@@ -1,19 +1,11 @@
-# flake8: noqa
+"""Google Spreadsheets Python API"""
 
-"""
-gspread
-~~~~~~~
-
-Google Spreadsheets client library.
-
-"""
-
-
-__version__ = "5.6.0"
+__version__ = "6.1.2"
 __author__ = "Anton Burnashev"
 
 
 from .auth import (
+    api_key,
     authorize,
     oauth,
     oauth_from_dict,
@@ -21,14 +13,14 @@ from .auth import (
     service_account_from_dict,
 )
 from .cell import Cell
-from .client import BackoffClient, Client, ClientFactory
+from .client import Client
 from .exceptions import (
-    CellNotFound,
     GSpreadException,
     IncorrectCellLabel,
     NoValidUrlKeyFound,
     SpreadsheetNotFound,
     WorksheetNotFound,
 )
+from .http_client import BackOffHTTPClient, HTTPClient
 from .spreadsheet import Spreadsheet
-from .worksheet import Worksheet
+from .worksheet import ValueRange, Worksheet

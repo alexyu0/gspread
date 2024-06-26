@@ -1,25 +1,27 @@
 import itertools
 import random
 import re
+from inspect import signature
 
 import pytest
 
 import gspread
-import gspread.utils as utils
+from gspread import utils
 from gspread.exceptions import APIError, GSpreadException
 
 from .conftest import I18N_STR, GspreadTest
 
 
 class WorksheetTest(GspreadTest):
-
     """Test for gspread.Worksheet."""
 
     @pytest.fixture(scope="function", autouse=True)
     def init(self, client, request):
         name = self.get_temporary_spreadsheet_title(request.node.name)
         WorksheetTest.spreadsheet = client.create(name)
-        WorksheetTest.sheet = WorksheetTest.spreadsheet.sheet1
+        WorksheetTest.sheet: gspread.worksheet.Worksheet = (
+            WorksheetTest.spreadsheet.sheet1
+        )
 
         yield
 
@@ -33,12 +35,22 @@ class WorksheetTest(GspreadTest):
     @pytest.mark.vcr()
     def test_acell(self):
         cell = self.sheet.acell("A1")
-        self.assertTrue(isinstance(cell, gspread.cell.Cell))
+        self.assertIsInstance(cell, gspread.cell.Cell)
+
+    @pytest.mark.vcr()
+    def test_attributes(self):
+        self.assertIsInstance(self.sheet.spreadsheet_id, str)
+        self.assertEqual(self.sheet.spreadsheet_id, self.spreadsheet.id)
+
+        self.assertIsInstance(self.sheet.client, gspread.http_client.HTTPClient)
+
+        self.assertIsInstance(self.sheet.spreadsheet, gspread.spreadsheet.Spreadsheet)
+        self.assertEqual(self.sheet.spreadsheet, self.spreadsheet)
 
     @pytest.mark.vcr()
     def test_cell(self):
         cell = self.sheet.cell(1, 1)
-        self.assertTrue(isinstance(cell, gspread.cell.Cell))
+        self.assertIsInstance(cell, gspread.cell.Cell)
 
     @pytest.mark.vcr()
     def test_range(self):
@@ -48,8 +60,8 @@ class WorksheetTest(GspreadTest):
         self.assertEqual(len(cell_range1), 5)
 
         for c1, c2 in zip(cell_range1, cell_range2):
-            self.assertTrue(isinstance(c1, gspread.cell.Cell))
-            self.assertTrue(isinstance(c2, gspread.cell.Cell))
+            self.assertIsInstance(c1, gspread.cell.Cell)
+            self.assertIsInstance(c2, gspread.cell.Cell)
             self.assertTrue(c1.col == c2.col)
             self.assertTrue(c1.row == c2.row)
             self.assertTrue(c1.value == c2.value)
@@ -80,7 +92,7 @@ class WorksheetTest(GspreadTest):
             ["1", "2", "3", "4"],
         ]
 
-        self.sheet.update("A1:D4", rows)
+        self.sheet.update(rows, "A1:D4")
 
         cell_range1 = self.sheet.range()
         cell_range2 = self.sheet.range("A1:D4")
@@ -89,6 +101,268 @@ class WorksheetTest(GspreadTest):
         tuples2 = [(c.row, c.col, c.value) for c in cell_range2]
 
         self.assertSequenceEqual(tuples1, tuples2)
+
+    @pytest.mark.vcr()
+    def test_get_returns_ValueRange_with_metadata(self):
+        self.sheet.resize(4, 4)
+        rows = [
+            ["1", "", "", ""],
+            ["", "", "", ""],
+            ["", "", "", ""],
+            ["", "", "", "2"],
+        ]
+        expected_rows = [
+            ["1"],
+            [],
+            [],
+            ["", "", "", "2"],
+        ]
+
+        self.sheet.update(rows, "A1:D4")
+
+        value_range = self.sheet.get("A1:D4")
+        self.assertTrue(isinstance(value_range, gspread.ValueRange))
+        self.assertEqual(value_range.range, "Sheet1!A1:D4")
+        self.assertEqual(value_range.major_dimension, "ROWS")
+        self.assertEqual(value_range, expected_rows)
+
+    @pytest.mark.vcr()
+    def test_get_values_returns_padded_get_as_listoflists(self):
+        """This is the only test for get_values. It should be identical to `get` but with default arguments"""
+        self.sheet.resize(4, 4)
+        rows = [
+            ["1", "", "", ""],
+            ["", "", "", ""],
+            ["", "", "", ""],
+            ["", "", "", "2"],
+        ]
+
+        self.sheet.update(rows, "A1:D4")
+
+        values = self.sheet.get_values("A1:D4")
+        values_from_get = self.sheet.get(
+            "A1:D4", return_type=utils.GridRangeType.ListOfLists, pad_values=True
+        )
+        self.assertEqual(values, rows)
+        self.assertIsInstance(values, list)
+        self.assertEqual(values_from_get, rows)
+
+    @pytest.mark.vcr()
+    def test_get_values_can_emulate_get_with_kwargs(self):
+        """Tests that get_values(pad_values=False, return_type=utils.GridRangeType.ValueRange)
+        is the same as get"""
+        self.sheet.resize(4, 4)
+        rows = [
+            ["1", "", "", ""],
+            ["", "", "", ""],
+            ["", "", "", ""],
+            ["", "", "", "2"],
+        ]
+
+        self.sheet.update(rows, "A1:D4")
+
+        values_get = self.sheet.get("A1:D4")
+        values_emulate_get = self.sheet.get_values(
+            "A1:D4",
+            pad_values=False,
+            return_type=utils.GridRangeType.ValueRange,
+        )
+
+        self.assertEqual(values_get, values_emulate_get)
+
+    @pytest.mark.vcr()
+    def test_get_values_and_combine_merged_cells(self):
+        self.sheet.resize(4, 4)
+        sheet_data = [
+            ["1", "", "", ""],
+            ["", "", "title", ""],
+            ["", "", "2", ""],
+            ["num", "val", "", "0"],
+        ]
+
+        self.sheet.update(sheet_data, "A1:D4")
+
+        self.sheet.merge_cells("A1:B2")
+        self.sheet.merge_cells("C2:D2")
+        self.sheet.merge_cells("C3:C4")
+
+        expected_merge = [
+            ["1", "1", "", ""],
+            ["1", "1", "title", "title"],
+            ["", "", "2", ""],
+            ["num", "val", "2", "0"],
+        ]
+
+        values = self.sheet.get_values()
+        values_with_merged = self.sheet.get_values(combine_merged_cells=True)
+
+        self.assertEqual(values, sheet_data)
+        self.assertEqual(values_with_merged, expected_merge)
+
+        # test with cell address
+        values_with_merged = self.sheet.get_values("A1:D4", combine_merged_cells=True)
+        self.assertEqual(values_with_merged, expected_merge)
+
+    @pytest.mark.vcr()
+    def test_get_values_with_args_or_kwargs(self):
+        # test that get_values accepts args and kwargs
+        self.sheet.resize(4, 4)
+        sheet_data = [
+            ["1", "", "", ""],
+            ["x", "y", "title", ""],
+            ["", "", "2", ""],
+            ["num", "val", "", "0"],
+        ]
+        self.sheet.update(sheet_data, "A1:D4")
+
+        data_args = self.sheet.get_values(
+            "A1:D4",
+            None,
+            utils.ValueRenderOption.formatted,
+        )
+        data_kwargs = self.sheet.get_values(
+            range_name="A1:D4",
+            major_dimension=None,
+            value_render_option=utils.ValueRenderOption.formatted,
+        )
+
+        self.assertEqual(data_args, sheet_data)
+        self.assertEqual(data_kwargs, sheet_data)
+
+    @pytest.mark.vcr()
+    def test_get_values_merge_cells_outside_of_range(self):
+        self.sheet.resize(4, 4)
+        sheet_data = [
+            ["1", "2", "4", ""],
+            ["down", "", "", ""],
+            ["", "", "2", ""],
+            ["num", "val", "", "0"],
+        ]
+
+        self.sheet.update(sheet_data, "A1:D4")
+
+        self.sheet.merge_cells("A2:A3")
+        self.sheet.merge_cells("C1:D2")
+
+        REQUEST_RANGE = "A1:B2"
+        expected_values = [
+            ["1", "2"],
+            ["down", ""],
+        ]
+
+        values_with_merged = self.sheet.get_values(
+            REQUEST_RANGE, combine_merged_cells=True
+        )
+        self.assertEqual(values_with_merged, expected_values)
+
+    @pytest.mark.vcr()
+    def test_get_values_merge_cells_from_centre_of_sheet(self):
+        self.sheet.resize(4, 3)
+        sheet_data = [
+            ["1", "2", "4"],
+            ["down", "up", ""],
+            ["", "", "2"],
+            ["num", "val", ""],
+        ]
+        self.sheet.update(sheet_data, "A1:C4")
+        self.sheet.merge_cells("A2:A3")
+        self.sheet.merge_cells("C1:C2")
+
+        REQUEST_RANGE = "B1:C3"
+        expected_values = [
+            ["2", "4"],
+            ["up", "4"],
+            ["", "2"],
+        ]
+
+        values_with_merged = self.sheet.get_values(
+            REQUEST_RANGE, combine_merged_cells=True
+        )
+        self.assertEqual(values_with_merged, expected_values)
+
+    @pytest.mark.vcr()
+    def test_get_values_merge_cells_with_named_range(self):
+        self.sheet.resize(4, 3)
+        sheet_data = [
+            ["1", "2", "4"],
+            ["down", "up", ""],
+            ["", "", "2"],
+            ["num", "val", ""],
+        ]
+        self.sheet.update(sheet_data, "A1:C4")
+        self.sheet.merge_cells("A2:A3")
+        self.sheet.merge_cells("C1:C2")
+
+        request_range = "NamedRange"
+        self.sheet.define_named_range("B1:C3", request_range)
+        expected_values = [
+            ["2", "4"],
+            ["up", "4"],
+            ["", "2"],
+        ]
+
+        values_with_merged = self.sheet.get_values(
+            request_range, combine_merged_cells=True
+        )
+        self.assertEqual(values_with_merged, expected_values)
+
+    @pytest.mark.vcr()
+    def test_get_merge_cells_and_unmerge_cells(self):
+        self.sheet.resize(4, 4)
+        sheet_data = [
+            ["1", "", "2", "3"],
+            ["", "", "", ""],
+            ["", "4", "", ""],
+            ["", "5", "", ""],
+        ]
+        self.sheet.update(sheet_data, "A1:D4")
+        self.sheet.merge_cells("A1:B2", utils.MergeType.merge_all)
+        self.sheet.merge_cells("C1:D2", utils.MergeType.merge_columns)
+        self.sheet.merge_cells("B3:C4", utils.MergeType.merge_rows)
+
+        REQUEST_RANGE = "A1:D4"
+        expected_values = [
+            ["1", "1", "2", "3"],
+            ["1", "1", "2", "3"],
+            ["", "4", "4", ""],
+            ["", "5", "5", ""],
+        ]
+        values_with_merged = self.sheet.get_values(
+            REQUEST_RANGE, combine_merged_cells=True
+        )
+        self.assertEqual(values_with_merged, expected_values)
+
+        self.sheet.unmerge_cells("A1:D4")
+        expected_values = sheet_data
+        values_with_merged = self.sheet.get_values(
+            REQUEST_RANGE, combine_merged_cells=True
+        )
+        self.assertEqual(values_with_merged, expected_values)
+
+    @pytest.mark.vcr()
+    def test_get_values_and_maintain_size(self):
+        """test get_values with maintain_size=True"""
+        self.sheet.resize(5, 5)
+        sheet_data = [
+            ["1", "2", "", "", ""],
+            ["3", "4", "", "", ""],
+            ["5", "6", "", "", ""],
+            ["", "", "", "", ""],
+            ["", "", "", "", ""],
+        ]
+        request_range = "A1:D4"
+        expected_values = [
+            ["1", "2", "", ""],
+            ["3", "4", "", ""],
+            ["5", "6", "", ""],
+            ["", "", "", ""],
+        ]
+
+        self.sheet.update(sheet_data, "A1:E5")
+
+        values = self.sheet.get_values(request_range, maintain_size=True)
+
+        self.assertEqual(values, expected_values)
 
     @pytest.mark.vcr()
     def test_update_acell(self):
@@ -167,19 +441,92 @@ class WorksheetTest(GspreadTest):
         self.assertEqual(cell.value, I18N_STR)
 
     @pytest.mark.vcr()
+    def test_update_title(self):
+        res = self.spreadsheet.fetch_sheet_metadata()
+        title_before = res["sheets"][0]["properties"]["title"]
+        title_before_prop = self.sheet.title
+
+        new_title = "I'm a new title"
+        self.sheet.update_title(new_title)
+
+        res = self.spreadsheet.fetch_sheet_metadata()
+        title_after = res["sheets"][0]["properties"]["title"]
+        title_after_prop = self.sheet.title
+
+        self.assertEqual(title_after, new_title)
+        self.assertEqual(title_after_prop, new_title)
+        self.assertNotEqual(title_before, new_title)
+        self.assertNotEqual(title_before_prop, new_title)
+
+    @pytest.mark.vcr()
     def test_update_tab_color(self):
-        # Assert that the method returns None.
         # Set the color.
         # Get the color.
-        # Assert it contains each color, red, green, blue
-        red_color = {
-            "red": 1,
-            "green": 0,
-            "blue": 0,
+        # Assert the color is the set and changed by google.
+
+        pink_color = {
+            "red": 1.0,
+            "green": 0.0,
+            "blue": 0.49803922,
         }
-        self.assertEqual(self.sheet.tab_color, None)
-        self.sheet.update_tab_color(red_color)
-        self.assertEqual(self.sheet.tab_color, red_color)
+
+        pink_color_hex = utils.convert_colors_to_hex_value(**pink_color)
+        self.assertEqual(pink_color_hex, "#FF007F")
+
+        params = {"fields": "sheets.properties.tabColorStyle"}
+        res = self.spreadsheet.fetch_sheet_metadata(params=params)
+        color_before = (
+            res["sheets"][0]["properties"]
+            .get("tabColorStyle", {})
+            .get("rgbColor", None)
+        )
+        color_param_before = self.sheet.tab_color
+        color_hex_before = self.sheet.get_tab_color()
+
+        self.sheet.update_tab_color(pink_color_hex)
+
+        res = self.spreadsheet.fetch_sheet_metadata(params=params)
+        color_param_after = self.sheet.tab_color
+        color_hex_after = self.sheet.get_tab_color()
+
+        # check that the value returned from google
+        # and the worksheet param convert back to the hex value.
+        self.assertEqual(color_before, None)
+        self.assertEqual(color_param_before, None)
+        self.assertEqual(color_hex_before, None)
+        self.assertEqual(color_param_after, "#FF007F")
+        self.assertEqual(color_hex_after, "#FF007F")
+
+    @pytest.mark.vcr()
+    def test_clear_tab_color(self):
+        # Set the color.
+        # Clear the color.
+        # Assert that the color is None.
+        pink_color = "#FF007F"
+        params = {"fields": "sheets.properties.tabColorStyle"}
+        res = self.spreadsheet.fetch_sheet_metadata(params=params)
+        color_before = (
+            res["sheets"][0]["properties"]
+            .get("tabColorStyle", {})
+            .get("rgbColor", None)
+        )
+        color_param_before = self.sheet.tab_color
+
+        self.sheet.update_tab_color(pink_color)
+        self.sheet.clear_tab_color()
+
+        res = self.spreadsheet.fetch_sheet_metadata(params=params)
+        color_after = (
+            res["sheets"][0]["properties"]
+            .get("tabColorStyle", {})
+            .get("rgbColor", None)
+        )
+        color_param_after = self.sheet.tab_color
+
+        self.assertEqual(color_before, None)
+        self.assertEqual(color_param_before, None)
+        self.assertEqual(color_after, None)
+        self.assertEqual(color_param_after, None)
 
     @pytest.mark.vcr()
     def test_update_cells_noncontiguous(self):
@@ -243,25 +590,25 @@ class WorksheetTest(GspreadTest):
         self.sheet.add_rows(add_num)
 
         grid_props = get_grid_props()
-
         self.assertEqual(grid_props["rowCount"], new_rows)
+        self.assertEqual(self.sheet.row_count, new_rows)
 
         new_cols = self.sheet.col_count + add_num
-
         self.sheet.add_cols(add_num)
 
         grid_props = get_grid_props()
-
         self.assertEqual(grid_props["columnCount"], new_cols)
+        self.assertEqual(self.sheet.col_count, new_cols)
 
         new_rows -= add_num
         new_cols -= add_num
         self.sheet.resize(new_rows, new_cols)
 
         grid_props = get_grid_props()
-
         self.assertEqual(grid_props["rowCount"], new_rows)
         self.assertEqual(grid_props["columnCount"], new_cols)
+        self.assertEqual(self.sheet.row_count, new_rows)
+        self.assertEqual(self.sheet.col_count, new_cols)
 
     @pytest.mark.vcr()
     def test_sort(self):
@@ -331,21 +678,22 @@ class WorksheetTest(GspreadTest):
         self.sheet.freeze(freeze_rows)
 
         grid_props = get_grid_props()
-
         self.assertEqual(grid_props["frozenRowCount"], freeze_rows)
+        self.assertEqual(self.sheet.frozen_row_count, freeze_rows)
 
         self.sheet.freeze(cols=freeze_cols)
 
         grid_props = get_grid_props()
-
         self.assertEqual(grid_props["frozenColumnCount"], freeze_cols)
+        self.assertEqual(self.sheet.frozen_col_count, freeze_cols)
 
         self.sheet.freeze(0, 0)
 
         grid_props = get_grid_props()
-
         self.assertTrue("frozenRowCount" not in grid_props)
         self.assertTrue("frozenColumnCount" not in grid_props)
+        self.assertEqual(self.sheet.frozen_row_count, 0)
+        self.assertEqual(self.sheet.frozen_col_count, 0)
 
     @pytest.mark.vcr()
     def test_basic_filters(self):
@@ -507,6 +855,69 @@ class WorksheetTest(GspreadTest):
         self.assertEqual(read_data, rows)
 
     @pytest.mark.vcr()
+    def test_get_all_values_date_time_render_options(self):
+        self.sheet.resize(2, 4)
+        # put in new values
+        rows = [
+            ["=4/2", "2020-01-01", "string", 53],
+            ["=3/2", 0.12, "1999-01-02", ""],
+        ]
+        cell_list = self.sheet.range("A1:D2")
+        for cell, value in zip(cell_list, itertools.chain(*rows)):
+            cell.value = value
+        self.sheet.update_cells(
+            cell_list, value_input_option=utils.ValueInputOption.user_entered
+        )
+
+        # with value_render as unformatted
+        # date_time_render as serial_number
+        read_records = self.sheet.get_values(
+            value_render_option=utils.ValueRenderOption.unformatted,
+            date_time_render_option=utils.DateTimeOption.serial_number,
+        )
+        expected_values = [
+            [2, 43831, "string", 53],
+            [3 / 2, 0.12, 36162, ""],
+        ]
+        self.assertEqual(read_records, expected_values)
+
+        # with value_render as unformatted
+        # date_time_render as formatted_string
+        read_records = self.sheet.get_values(
+            value_render_option=utils.ValueRenderOption.unformatted,
+            date_time_render_option=utils.DateTimeOption.formatted_string,
+        )
+        expected_values = [
+            [2, "2020-01-01", "string", 53],
+            [3 / 2, 0.12, "1999-01-02", ""],
+        ]
+        self.assertEqual(read_records, expected_values)
+
+        # with value_render as formatted (overrides date_time_render)
+        # date_time_render as serial_number
+        read_records = self.sheet.get_values(
+            value_render_option=utils.ValueRenderOption.formatted,
+            date_time_render_option=utils.DateTimeOption.serial_number,
+        )
+        expected_values = [
+            ["2", "2020-01-01", "string", "53"],
+            ["1.5", "0.12", "1999-01-02", ""],
+        ]
+        self.assertEqual(read_records, expected_values)
+
+        # with value_render as formatted (overrides date_time_render)
+        # date_time_render as formatted_string
+        read_records = self.sheet.get_values(
+            value_render_option=utils.ValueRenderOption.formatted,
+            date_time_render_option=utils.DateTimeOption.formatted_string,
+        )
+        expected_values = [
+            ["2", "2020-01-01", "string", "53"],
+            ["1.5", "0.12", "1999-01-02", ""],
+        ]
+        self.assertEqual(read_records, expected_values)
+
+    @pytest.mark.vcr()
     def test_get_all_records(self):
         self.sheet.resize(4, 4)
         # put in new values
@@ -516,10 +927,7 @@ class WorksheetTest(GspreadTest):
             ["", "", "", ""],
             ["A4", 0.4, "", 4],
         ]
-        cell_list = self.sheet.range("A1:D4")
-        for cell, value in zip(cell_list, itertools.chain(*rows)):
-            cell.value = value
-        self.sheet.update_cells(cell_list)
+        self.sheet.update(rows, "A1:D4")
 
         # first, read empty strings to empty strings
         read_records = self.sheet.get_all_records()
@@ -557,10 +965,7 @@ class WorksheetTest(GspreadTest):
             ["", "", "", ""],
             ["A4", 0.4, "", 4],
         ]
-        cell_list = self.sheet.range("A1:D6")
-        for cell, value in zip(cell_list, itertools.chain(*rows)):
-            cell.value = value
-        self.sheet.update_cells(cell_list)
+        self.sheet.update(rows, "A1:D6")
 
         # first, read empty strings to empty strings
         read_records = self.sheet.get_all_records(head=3)
@@ -631,34 +1036,16 @@ class WorksheetTest(GspreadTest):
         self.sheet.resize(4, 4)
         # put in new values
         rows = [
-            ["A1", "A1", "", "D1"],
+            ["A1", "faff", "C3", "faff"],
             [1, "b2", 1.45, ""],
             ["", "", "", ""],
             ["A4", 0.4, "", 4],
         ]
-        cell_list = self.sheet.range("A1:D4")
-        for cell, value in zip(cell_list, itertools.chain(*rows)):
-            cell.value = value
-        self.sheet.update_cells(cell_list)
+        self.sheet.update(rows, "A1:D4")
 
+        # check no expected headers
         with pytest.raises(GSpreadException):
             self.sheet.get_all_records()
-
-    @pytest.mark.vcr(allow_playback_repeats=True)
-    def test_get_all_records_expected_headers(self):
-        self.sheet.resize(4, 4)
-
-        # put in new values
-        rows = [
-            ["A1", "B2", "C3", "D4"],
-            [1, "b2", 1.45, ""],
-            ["", "", "", ""],
-            ["A4", 0.4, "", 4],
-        ]
-        cell_list = self.sheet.range("A1:D4")
-        for cell, value in zip(cell_list, itertools.chain(*rows)):
-            cell.value = value
-        self.sheet.update_cells(cell_list)
 
         # check non uniques expected headers
         expected_headers = ["A1", "A1"]
@@ -682,6 +1069,105 @@ class WorksheetTest(GspreadTest):
         self.assertDictEqual(expected_values_1, read_records[0])
         self.assertDictEqual(expected_values_2, read_records[1])
         self.assertDictEqual(expected_values_3, read_records[2])
+
+    @pytest.mark.vcr()
+    def test_get_all_records_with_blank_final_headers(self):
+        # regression test for #590, #629, #1354
+        self.sheet.resize(4, 4)
+
+        # put in new values
+        rows = [
+            ["A1", "faff", "", ""],
+            [1, "b2", 1.45, ""],
+            ["", "", "", ""],
+            ["A4", 0.4, "", 4],
+        ]
+        self.sheet.update(rows, "A1:D4")
+
+        with pytest.raises(GSpreadException):
+            self.sheet.get_all_records()
+
+        expected_headers = []
+        read_records = self.sheet.get_all_records(
+            expected_headers=expected_headers,
+        )
+
+        expected_values_1 = dict(zip(rows[0], rows[1]))
+        expected_values_2 = dict(zip(rows[0], rows[2]))
+        expected_values_3 = dict(zip(rows[0], rows[3]))
+        self.assertDictEqual(expected_values_1, read_records[0])
+        self.assertDictEqual(expected_values_2, read_records[1])
+        self.assertDictEqual(expected_values_3, read_records[2])
+
+    @pytest.mark.vcr()
+    def test_get_all_records_with_keys_blank(self):
+        # regression test for #1355
+        self.sheet.resize(4, 4)
+
+        rows = [
+            ["", "", "", ""],
+            ["c", "d", "e", "f"],
+            ["g", "h", "i", "j"],
+            ["k", "l", "m", ""],
+        ]
+        cell_list = self.sheet.range("A1:D4")
+        for cell, value in zip(cell_list, itertools.chain(*rows)):
+            cell.value = value
+        self.sheet.update_cells(cell_list)
+
+        # duplicate headers
+        with pytest.raises(GSpreadException):
+            self.sheet.get_all_records()
+
+        # ignore duplicate headers
+        read_records = self.sheet.get_all_records(expected_headers=[])
+
+        expected_values_1 = dict(zip(rows[0], rows[1]))
+        expected_values_2 = dict(zip(rows[0], rows[2]))
+        expected_values_3 = dict(zip(rows[0], rows[3]))
+        self.assertDictEqual(expected_values_1, read_records[0])
+        self.assertDictEqual(expected_values_2, read_records[1])
+        self.assertDictEqual(expected_values_3, read_records[2])
+
+    @pytest.mark.vcr()
+    def test_get_all_records_with_all_values_blank(self):
+        # regression test for #1355
+        self.sheet.resize(4, 4)
+
+        rows = [
+            ["a", "b", "c", "d"],
+            ["", "", "", ""],
+            ["", "", "", ""],
+            ["", "", "", ""],
+        ]
+        self.sheet.update(rows, "A1:D4")
+
+        # I ask for get_all_records()
+        # I want []
+        read_records_nofirst_nolast = self.sheet.get_all_records()
+        self.assertEqual(len(read_records_nofirst_nolast), 0)
+
+    @pytest.mark.vcr()
+    def test_get_all_records_with_some_values_blank(self):
+        # regression test for #1363
+        self.sheet.resize(6, 4)
+
+        rows = [
+            ["a", "b", "c", "d"],
+            ["x", "y", "z", ""],
+            ["", "", "", ""],
+            ["", "", "", ""],
+            ["", "", "", ""],
+            ["", "", "", ""],
+        ]
+
+        self.sheet.update(rows, "A1:D6")
+
+        read_records = self.sheet.get_all_records()
+
+        expected_values_1 = dict(zip(rows[0], rows[1]))
+        self.assertEqual(len(read_records), 1)
+        self.assertDictEqual(expected_values_1, read_records[0])
 
     @pytest.mark.vcr()
     def test_get_all_records_numericise_unformatted(self):
@@ -708,12 +1194,59 @@ class WorksheetTest(GspreadTest):
         self.assertEqual(read_records[0], d0)
 
     @pytest.mark.vcr()
+    def test_get_all_records_pad_one_key(self):
+        self.sheet.resize(2, 4)
+        rows = [
+            ["A1", "B1", "C1"],
+            [1, 2, 3, 4],
+        ]
+        self.sheet.update(rows, "A1:D2")
+
+        read_records = self.sheet.get_all_records(head=1)
+        rows[0].append("")
+        d0 = dict(zip(rows[0], rows[1]))
+        records_list = [d0]
+        self.assertEqual(read_records, records_list)
+
+    @pytest.mark.vcr()
+    def test_get_all_records_pad_values(self):
+        self.sheet.resize(2, 4)
+        rows = [
+            ["A1", "B1", "C1"],
+            [1, 2],
+        ]
+        self.sheet.update(rows, "A1:C2")
+
+        read_records = self.sheet.get_all_records(head=1)
+        rows[1].append("")
+        d0 = dict(zip(rows[0], rows[1]))
+        records_list = [d0]
+        self.assertEqual(read_records, records_list)
+
+    @pytest.mark.vcr()
+    def test_get_all_records_pad_more_than_one_key(self):
+        self.sheet.resize(2, 4)
+        rows = [
+            ["A1", "B1"],
+            [1, 2, 3, 4],
+        ]
+        self.sheet.update(rows, "A1:D2")
+
+        with pytest.raises(GSpreadException):
+            self.sheet.get_all_records(head=1)
+
+    @pytest.mark.vcr()
     def test_append_row(self):
+        row_num_before = self.sheet.row_count
         sg = self._sequence_generator()
         value_list = [next(sg) for i in range(10)]
+
         self.sheet.append_row(value_list)
         read_values = self.sheet.row_values(1)
+        row_num_after = self.sheet.row_count
+
         self.assertEqual(value_list, read_values)
+        self.assertEqual(row_num_before + 1, row_num_after)
 
     @pytest.mark.vcr()
     def test_append_row_with_empty_value(self):
@@ -753,18 +1286,29 @@ class WorksheetTest(GspreadTest):
         cell_list = self.sheet.range("A1:D6")
         for cell, value in zip(cell_list, itertools.chain(*rows)):
             cell.value = value
+
         self.sheet.update_cells(cell_list)
 
         new_row_values = [next(sg) for i in range(num_cols + 4)]
+        row_count_before = self.sheet.row_count
+
         self.sheet.insert_row(new_row_values, 2)
         read_values = self.sheet.row_values(2)
+        row_count_after = self.sheet.row_count
+
         self.assertEqual(new_row_values, read_values)
+        self.assertEqual(row_count_before + 1, row_count_after)
 
         formula = "=1+1"
+
         self.sheet.update_acell("B2", formula)
+
         values = [next(sg) for i in range(num_cols + 4)]
+
         self.sheet.insert_row(values, 1)
+
         b3 = self.sheet.acell("B3", value_render_option=utils.ValueRenderOption.formula)
+
         self.assertEqual(b3.value, formula)
 
         new_row_values = [next(sg) for i in range(num_cols + 4)]
@@ -772,18 +1316,78 @@ class WorksheetTest(GspreadTest):
             self.sheet.insert_row(new_row_values, 1, inherit_from_before=True)
 
     @pytest.mark.vcr()
+    def test_insert_cols(self):
+        sequence_generator = self._sequence_generator()
+        num_rows = 6
+        num_cols = 4
+        rows = [
+            [next(sequence_generator) for j in range(num_cols)] for i in range(num_rows)
+        ]
+        cell_list = self.sheet.range("A1:D6")
+        for cell, value in zip(cell_list, itertools.chain(*rows)):
+            cell.value = value
+        self.sheet.update_cells(cell_list)
+
+        new_col_values = [
+            [next(sequence_generator) for i in range(num_cols)] for i in range(2)
+        ]
+        col_count_before = self.sheet.col_count
+
+        self.sheet.insert_cols(new_col_values, 2)
+
+        read_values_1 = self.sheet.col_values(2)
+        read_values_2 = self.sheet.col_values(3)
+        read_values = [read_values_1, read_values_2]
+        col_count_after = self.sheet.col_count
+
+        self.assertEqual(col_count_before + 2, col_count_after)
+        self.assertEqual(new_col_values, read_values)
+
+    @pytest.mark.vcr()
     def test_delete_row(self):
-        sg = self._sequence_generator()
+        sequence_generator = self._sequence_generator()
 
         for i in range(5):
-            value_list = [next(sg) for i in range(10)]
+            value_list = [next(sequence_generator) for i in range(10)]
             self.sheet.append_row(value_list)
 
         prev_row = self.sheet.row_values(1)
         next_row = self.sheet.row_values(3)
-        self.sheet.delete_row(2)
+        row_count_before = self.sheet.row_count
+
+        self.sheet.delete_rows(2)
+
+        row_count_after = self.sheet.row_count
+        self.assertEqual(row_count_before - 1, row_count_after)
         self.assertEqual(self.sheet.row_values(1), prev_row)
         self.assertEqual(self.sheet.row_values(2), next_row)
+
+    @pytest.mark.vcr()
+    def test_delete_cols(self):
+        sequence_generator = self._sequence_generator()
+        num_rows = 6
+        num_cols = 4
+        rows = [
+            [next(sequence_generator) for j in range(num_cols)] for i in range(num_rows)
+        ]
+        cell_list = self.sheet.range("A1:D6")
+        for cell, value in zip(cell_list, itertools.chain(*rows)):
+            cell.value = value
+        self.sheet.update_cells(cell_list)
+
+        col_count_before = self.sheet.col_count
+        first_col_before = self.sheet.col_values(1)
+        fourth_col_before = self.sheet.col_values(4)
+
+        self.sheet.delete_columns(2, 3)
+
+        col_count_after = self.sheet.col_count
+        first_col_after = self.sheet.col_values(1)
+        second_col_after = self.sheet.col_values(2)
+
+        self.assertEqual(col_count_before - 2, col_count_after)
+        self.assertEqual(first_col_before, first_col_after)
+        self.assertEqual(fourth_col_before, second_col_after)
 
     @pytest.mark.vcr()
     def test_clear(self):
@@ -802,7 +1406,7 @@ class WorksheetTest(GspreadTest):
         self.sheet.update_cells(cell_list)
 
         self.sheet.clear()
-        self.assertEqual(self.sheet.get_all_values(), [])
+        self.assertEqual(self.sheet.get_all_values(), [[]])
 
     @pytest.mark.vcr()
     def test_update_and_get(self):
@@ -813,12 +1417,18 @@ class WorksheetTest(GspreadTest):
             ["A4", "B4", "", "D4"],
         ]
 
-        self.sheet.update("A1", values)
+        self.sheet.update(values, "A1")
 
         read_data = self.sheet.get("A1:D4")
 
         self.assertEqual(
-            read_data, [["A1", "B1", "", "D1"], ["", "b2"], [], ["A4", "B4", "", "D4"]]
+            read_data,
+            [
+                ["A1", "B1", "", "D1"],
+                ["", "b2"],
+                [],
+                ["A4", "B4", "", "D4"],
+            ],
         )
 
     @pytest.mark.vcr()
@@ -830,7 +1440,7 @@ class WorksheetTest(GspreadTest):
             ["A4", "B4", "", "D4"],
         ]
 
-        self.sheet.update("A1", values)
+        self.sheet.update(values, "A1")
 
         value_ranges = self.sheet.batch_get(["A1:B1", "B4:D4"])
 
@@ -838,6 +1448,13 @@ class WorksheetTest(GspreadTest):
         self.assertEqual(value_ranges[0].range, "Sheet1!A1:B1")
         self.assertEqual(value_ranges[1].range, "Sheet1!B4:D4")
         self.assertEqual(value_ranges[0].first(), "A1")
+
+    @pytest.mark.vcr()
+    def test_cell_return_first(self):
+        cell = self.sheet.cell(1, 1)
+
+        self.assertIsInstance(cell, gspread.cell.Cell)
+        self.assertIsNone(cell.value)
 
     @pytest.mark.vcr()
     def test_batch_update(self):
@@ -856,7 +1473,51 @@ class WorksheetTest(GspreadTest):
 
         data = self.sheet.get("A1:D4")
 
-        self.assertEqual(data, [["A1", "B1", "", "D1"], [], [], ["A4", "B4", "", "D4"]])
+        self.assertEqual(
+            data,
+            [
+                ["A1", "B1", "", "D1"],
+                [],
+                [],
+                ["A4", "B4", "", "D4"],
+            ],
+        )
+
+    @pytest.mark.vcr()
+    def test_add_protected_range_normal(self):
+        self.sheet.add_protected_range("A1:B2", [])
+
+        metadata = self.spreadsheet.fetch_sheet_metadata()
+        protected_ranges = metadata["sheets"][0]["protectedRanges"]
+
+        self.assertEqual(protected_ranges[0]["range"]["startColumnIndex"], 0)
+        self.assertEqual(protected_ranges[0]["range"]["endColumnIndex"], 2)
+        self.assertEqual(protected_ranges[0]["range"]["startRowIndex"], 0)
+        self.assertEqual(protected_ranges[0]["range"]["endRowIndex"], 2)
+
+    @pytest.mark.vcr()
+    def test_add_protected_range_warning(self):
+        self.sheet.add_protected_range("A1:B2", warning_only=True)
+
+        metadata = self.spreadsheet.fetch_sheet_metadata()
+        protected_ranges = metadata["sheets"][0]["protectedRanges"]
+
+        self.assertEqual(protected_ranges[0]["range"]["startColumnIndex"], 0)
+        self.assertEqual(protected_ranges[0]["range"]["endColumnIndex"], 2)
+        self.assertEqual(protected_ranges[0]["range"]["startRowIndex"], 0)
+        self.assertEqual(protected_ranges[0]["range"]["endRowIndex"], 2)
+        self.assertEqual(protected_ranges[0]["warningOnly"], True)
+
+    @pytest.mark.vcr()
+    def test_delete_protected_range(self):
+        self.sheet.add_protected_range("A1:B2", [])
+        metadata = self.spreadsheet.fetch_sheet_metadata()
+        protected_ranges = metadata["sheets"][0]["protectedRanges"]
+        self.assertEqual(len(protected_ranges), 1)
+
+        self.sheet.delete_protected_range(protected_ranges[0]["protectedRangeId"])
+        metadata = self.spreadsheet.fetch_sheet_metadata()
+        self.assertNotIn("protectedRanges", metadata["sheets"][0])
 
     @pytest.mark.vcr()
     def test_format(self):
@@ -903,23 +1564,56 @@ class WorksheetTest(GspreadTest):
 
     @pytest.mark.vcr()
     def test_worksheet_update_index(self):
-        w = self.spreadsheet.worksheets()
-        last_sheet = w[-1]
+        # need to have multiple worksheets to reorder them
+        self.spreadsheet.add_worksheet("test_sheet", 100, 100)
+        self.spreadsheet.add_worksheet("test_sheet 2", 100, 100)
+
+        worksheets = self.spreadsheet.worksheets()
+        last_sheet = worksheets[-1]
+        self.assertEqual(last_sheet.index, len(worksheets) - 1)
+
         last_sheet.update_index(0)
-        w = self.spreadsheet.worksheets()
-        self.assertEqual(w[0].id, last_sheet.id)
+
+        worksheets = self.spreadsheet.worksheets()
+        self.assertEqual(worksheets[0].id, last_sheet.id)
+        self.assertEqual(last_sheet.index, 0)
 
     @pytest.mark.vcr()
     def test_worksheet_notes(self):
         w = self.spreadsheet.worksheets()[0]
 
-        # will trigger a Exception in case of any issue
+        # test get_note when empty
         self.assertEqual(w.get_note("A1"), "")
-        test_note_string = "This is a test note"
+        # test insert_note and get_note
+        test_note_string = "slim shaddy"
         w.insert_note("A1", test_note_string)
         self.assertEqual(w.get_note("A1"), test_note_string)
+        # test update_note
+        update_note = "the real " + test_note_string
+        w.update_note("A1", update_note)
+        self.assertEqual(w.get_note("A1"), update_note)
+        # test clear_note
         w.clear_note("A1")
         self.assertEqual(w.get_note("A1"), "")
+
+        notes = {"A1": "read my note", "B2": "Or don't"}
+
+        # test insert_notes
+        w.insert_notes(notes)
+        self.assertEqual(w.get_note("A1"), notes["A1"])
+        self.assertEqual(w.get_note("B2"), notes["B2"])
+
+        # test update_notes
+        notes["A1"] = "remember to clean bedroom"
+        notes["B2"] = "do homeworks"
+        w.update_notes(notes)
+        self.assertEqual(w.get_note("A1"), notes["A1"])
+        self.assertEqual(w.get_note("B2"), notes["B2"])
+
+        # test clear_notes
+        w.clear_notes(["A1", "B2"])
+        self.assertEqual(w.get_note("A1"), "")
+        self.assertEqual(w.get_note("B2"), "")
 
         with self.assertRaises(TypeError) as _:
             w.insert_note("A1", 42)
@@ -927,28 +1621,46 @@ class WorksheetTest(GspreadTest):
             w.insert_note("A1", w)
 
     @pytest.mark.vcr()
+    def test_get_notes(self):
+        w = self.spreadsheet.worksheets()[0]
+        notes = {"A1": "read my note", "B2": "Or don't"}
+        notes_array = [
+            [notes["A1"]],
+            ["", notes["B2"]],
+        ]
+
+        empty_notes = w.get_notes()
+
+        w.insert_notes(notes)
+
+        all_notes = w.get_notes()
+
+        self.assertEqual(empty_notes, [[]])
+        self.assertEqual(all_notes, notes_array)
+
+    @pytest.mark.vcr()
     def test_batch_clear(self):
         w = self.spreadsheet.sheet1
 
         # make sure cells are empty
-        self.assertListEqual(w.get_values("A1:B1"), [])
-        self.assertListEqual(w.get_values("C2:E2"), [])
+        self.assertListEqual(w.get_values("A1:B1"), [[]])
+        self.assertListEqual(w.get_values("C2:E2"), [[]])
 
         # fill the cells
-        w.update("A1:B1", [["12345", "ThisIsText"]])
-        w.update("C2:E2", [["5678", "Second", "Text"]])
+        w.update([["12345", "ThisIsText"]], "A1:B1")
+        w.update([["5678", "Second", "Text"]], "C2:E2")
 
         # confirm the cells are not empty
-        self.assertNotEqual(w.get_values("A1:B1"), [])
-        self.assertNotEqual(w.get_values("C2:E2"), [])
+        self.assertNotEqual(w.get_values("A1:B1"), [[]])
+        self.assertNotEqual(w.get_values("C2:E2"), [[]])
 
         # empty both cell range at once
         w.batch_clear(["A1:B1", "C2:E2"])
 
         # confirm cells are empty
         # make sure cells are empty
-        self.assertListEqual(w.get_values("A1:B1"), [])
-        self.assertListEqual(w.get_values("C2:E2"), [])
+        self.assertListEqual(w.get_values("A1:B1"), [[]])
+        self.assertListEqual(w.get_values("C2:E2"), [[]])
 
     @pytest.mark.vcr()
     def test_group_columns(self):
@@ -1015,19 +1727,88 @@ class WorksheetTest(GspreadTest):
         # the response does not include some default values.
         # if missing => value is False
         res = self.spreadsheet.fetch_sheet_metadata()
-        before_hide = res["sheets"][1]["properties"].get("hidden", False)
-        self.assertFalse(before_hide)
+        hidden_before = res["sheets"][1]["properties"].get("hidden", False)
+        hidden_before_prop = new_sheet.isSheetHidden
+
+        self.assertFalse(hidden_before)
+        self.assertFalse(hidden_before_prop)
 
         new_sheet.hide()
 
         res = self.spreadsheet.fetch_sheet_metadata()
-        after_hide = res["sheets"][1]["properties"].get("hidden", False)
-        self.assertTrue(after_hide)
+        hidden_after = res["sheets"][1]["properties"].get("hidden", False)
+        hidden_after_prop = new_sheet.isSheetHidden
+        self.assertTrue(hidden_after)
+        self.assertTrue(hidden_after_prop)
 
         new_sheet.show()
+
         res = self.spreadsheet.fetch_sheet_metadata()
-        before_hide = res["sheets"][1]["properties"].get("hidden", False)
-        self.assertFalse(before_hide)
+        hidden_before = res["sheets"][1]["properties"].get("hidden", False)
+        hidden_before_prop = new_sheet.isSheetHidden
+        self.assertFalse(hidden_before)
+        self.assertFalse(hidden_before_prop)
+
+    @pytest.mark.vcr()
+    def test_hide_gridlines(self):
+        """Hide gridlines. Check API to see if they are hidden."""
+
+        def are_gridlines_hidden():
+            res = self.spreadsheet.fetch_sheet_metadata()
+            sheets = res["sheets"]
+            sheet = utils.finditem(
+                lambda x: x["properties"]["sheetId"] == self.sheet.id,
+                sheets,
+            )
+            return (
+                sheet["properties"]
+                .get("gridProperties", {})
+                .get("hideGridlines", False)
+            )
+
+        hidden_before = are_gridlines_hidden()
+        hidden_before_property = self.sheet.is_gridlines_hidden
+
+        self.sheet.hide_gridlines()
+
+        hidden_after = are_gridlines_hidden()
+        hidden_after_property = self.sheet.is_gridlines_hidden
+
+        self.assertFalse(hidden_before)
+        self.assertFalse(hidden_before_property)
+        self.assertTrue(hidden_after)
+        self.assertTrue(hidden_after_property)
+
+    @pytest.mark.vcr()
+    def test_show_gridlines(self):
+        """Show gridlines. Check API to see if they are shown."""
+
+        def are_gridlines_hidden():
+            res = self.spreadsheet.fetch_sheet_metadata()
+            sheets = res["sheets"]
+            sheet = utils.finditem(
+                lambda x: x["properties"]["sheetId"] == self.sheet.id,
+                sheets,
+            )
+            return (
+                sheet["properties"]
+                .get("gridProperties", {})
+                .get("hideGridlines", False)
+            )
+
+        hidden_before = are_gridlines_hidden()
+        hidden_before_property = self.sheet.is_gridlines_hidden
+
+        self.sheet.hide_gridlines()
+        self.sheet.show_gridlines()
+
+        hidden_after = are_gridlines_hidden()
+        hidden_after_property = self.sheet.is_gridlines_hidden
+
+        self.assertFalse(hidden_before)
+        self.assertFalse(hidden_before_property)
+        self.assertFalse(hidden_after)
+        self.assertFalse(hidden_after_property)
 
     @pytest.mark.vcr()
     def test_auto_resize_columns(self):
@@ -1053,3 +1834,81 @@ class WorksheetTest(GspreadTest):
         size_after = res["sheets"][0]["data"][0]["columnMetadata"][0]["pixelSize"]
 
         self.assertGreater(size_after, size_before)
+
+    @pytest.mark.vcr()
+    def test_copy_cut_range(self):
+        w = self.sheet
+
+        # init the sheet values
+        values = [["A1"], ["A2"]]
+        w.update(values, "A1:A2")
+
+        # copy the values
+        w.copy_range("A1:A2", "B1:B2")
+
+        # check the copied values
+        cells = w.range("B1:B2")
+        self.assertListEqual(
+            list(itertools.chain(*values)), [cell.value for cell in cells]
+        )
+
+        # cut the original values in A1:A2
+        w.cut_range("A1:A2", "C1")
+
+        # check the values have moved
+        cells = w.range("A1:A2")
+        self.assertListEqual([cell.value for cell in cells], ["", ""])
+
+        cells = w.range("C1:C2")
+        self.assertListEqual(
+            list(itertools.chain(*values)),
+            [cell.value for cell in cells],
+        )
+
+    @pytest.mark.vcr()
+    def test_get_and_get_values_have_same_signature(self):
+        """get_values and get should have the same signature apart from
+        return_type and pad_values
+        get_all_values should be the same as get_values
+        """
+        sig_get = signature(self.sheet.get)
+        sig_get_values = signature(self.sheet.get_values)
+        sig_get_all_values = signature(self.sheet.get_all_values)
+
+        # for get and get_values, all params should be equal apart from
+        #  return_type and pad_values
+        params_get = sig_get.parameters
+        params_get_values = sig_get_values.parameters
+
+        self.assertEqual(
+            {
+                key: params_get[key]
+                for key in params_get
+                if key not in ["return_type", "pad_values"]
+            },
+            {
+                key: params_get_values[key]
+                for key in params_get_values
+                if key not in ["return_type", "pad_values"]
+            },
+        )
+        self.assertNotEqual(params_get["return_type"], params_get_values["return_type"])
+        self.assertNotEqual(params_get["pad_values"], params_get_values["pad_values"])
+
+        # get_all_values should be a carbon copy of get_values
+        self.assertEqual(sig_get_values, sig_get_all_values)
+
+    @pytest.mark.vcr()
+    def test_add_validation(self):
+        sheet = self.sheet
+        self.assertDictEqual(
+            sheet.add_validation(
+                "A1",
+                utils.ValidationConditionType.one_of_list,
+                ["y", "n"],
+                strict=True,
+            ),
+            {"spreadsheetId": self.spreadsheet.id, "replies": [{}]},
+        )
+
+        self.assertRaises(APIError, sheet.update, values="X", range_name="A1")

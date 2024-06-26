@@ -12,6 +12,12 @@ You can open a spreadsheet by its title as it appears in Google Docs:
 .. code:: python
 
    sh = gc.open('My poor gym results')
+   
+.. NOTE::
+    If you have multiple Google Sheets with the same title, only the latest sheet will be 
+    opened by this method without throwing an error. It's recommended to open the sheet
+    using its unique ID instead (see below)
+      
 
 If you want to be specific, use a key (which can be extracted from
 the spreadsheet's url):
@@ -99,6 +105,15 @@ Deleting a Worksheet
    sh.del_worksheet(worksheet)
 
 
+Updating a Worksheet's name and color
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code:: python
+
+   worksheet.update_title("December Transactions")
+   worksheet.update_tab_color({"red": 1, "green": 0.5, "blue": 0.5})
+
+
 Getting a Cell Value
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -123,6 +138,42 @@ If you want to get a cell formula:
    # or
 
    cell = worksheet.cell(1, 2, value_render_option='FORMULA').value
+
+Getting Unformatted Cell Value
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Get the Unformatted value from a cell.
+Example: cells formatted as currency will display with the selected
+currency but they actual value is regular number.
+
+Get the formatted (as displayed) value:
+
+.. code:: python
+
+   worksheet.get("A1:B2")
+
+Results in: ``[['$12.00']]``
+
+Get the unformatted value:
+
+.. code:: python
+
+   from gspread.utils import ValueRenderOption
+   worksheet.get("A1:B2", value_render_option=ValueRenderOption.unformatted)
+
+Results in: ``[[12]]``
+
+Getting Cell formula
+~~~~~~~~~~~~~~~~~~~~
+
+Get the formula from a cell instead of the resulting value:
+
+.. code:: python
+
+   from gspread.utils import ValueRenderOption
+   worksheet.get("G6", value_render_option=ValueRenderOption.formula)
+
+Resulsts in: ``[['=1/1024']]``
 
 
 Getting All Values From a Row or a Column
@@ -220,7 +271,7 @@ Find all cells matching a regexp:
 Clear A Worksheet
 ~~~~~~~~~~~~~~~~~
 
-Clear one or multiple celle ranges at once:
+Clear one or multiple cells ranges at once:
 
 .. code:: python
 
@@ -251,7 +302,7 @@ Using `A1 notation <https://developers.google.com/sheets/api/guides/concepts#a1_
 
 .. code:: python
 
-   worksheet.update('B1', 'Bingo!')
+   worksheet.update_acell('B1', 'Bingo!')
 
 Or row and column coordinates:
 
@@ -263,7 +314,45 @@ Update a range
 
 .. code:: python
 
-   worksheet.update('A1:B2', [[1, 2], [3, 4]])
+   worksheet.update([[1, 2], [3, 4]], 'A1:B2')
+
+
+Adding Data Validation
+~~~~~~~~~~~~~~~~~~~~~~
+
+You can add a strict validation to a cell.
+
+.. code:: python
+
+   ws.add_validation(
+      'A1',
+      ValidationConditionType.number_greater,
+      [10],
+      strict=True,
+      inputMessage='Value must be greater than 10',
+   )
+ 
+
+Or add validation with a drop down.
+
+.. code:: python
+   
+   worksheet.add_validation(
+      'C2:C7',
+      ValidationConditionType.one_of_list,
+      ['Yes',
+      'No',]
+      showCustomUi=True
+   )
+
+
+Check out the api docs for `DataValidationRule`_ and `CondtionType`_ for more details.
+
+.. _CondtionType: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#ConditionType
+
+.. _DataValidationRule: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/cells#DataValidationRule 
+
+
 
 Formatting
 ~~~~~~~~~~
@@ -351,5 +440,5 @@ Write a NumPy array to a sheet:
    array = np.array([[1, 2, 3], [4, 5, 6]])
 
    # Write the array to worksheet starting from the A2 cell
-   worksheet.update('A2', array.tolist())
+   worksheet.update(array.tolist(), 'A2')
 
