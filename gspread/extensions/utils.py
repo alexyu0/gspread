@@ -7,7 +7,7 @@ import json
 
 
 from gspread import authorize as gspread_authorize
-from gspread.models import Cell
+from gspread.cell import Cell
 from google.oauth2 import credentials as oauth2_creds, service_account as oauth2_sa
 import google_auth_oauthlib.flow
 from oauth2client.service_account import ServiceAccountCredentials

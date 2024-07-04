@@ -22,9 +22,6 @@ from .urls import DRIVE_FILES_API_V3_COMMENTS_URL, DRIVE_FILES_API_V3_URL
 from .utils import ExportFormat, MimeType, extract_id_from_url, finditem
 
 
-log = logging.getLogger(__name__)
-
-
 class Client:
     """An instance of this class Manages Spreadsheet files
 
